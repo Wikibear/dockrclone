@@ -18,6 +18,50 @@ Quellen definiert werden. Der optionale Kuma-Heartbeat wird erst gesendet, wenn
 alle Quellen erfolgreich gesichert wurden. Ein fehlgeschlagener Push beendet den
 manuellen oder geplanten Lauf mit Fehler.
 
+## Manuell testen
+
+Vor dem Start kann die Compose-Konfiguration geprüft werden:
+
+```sh
+docker compose config
+```
+
+Container starten und Status kontrollieren:
+
+```sh
+docker compose up -d
+docker compose ps
+```
+
+Einen vollständigen Backup-Lauf sofort im laufenden Container ausführen:
+
+```sh
+docker compose exec storebackup backup
+```
+
+Der Befehl läuft im Vordergrund und liefert bei Erfolg Exit-Code `0`. Fehler von
+storeBackup oder beim Kuma-Push führen zu einem Exit-Code ungleich `0`.
+
+Ein Backup kann alternativ im Hintergrund gestartet werden:
+
+```sh
+docker compose exec -d storebackup backup
+docker compose logs -f storebackup
+```
+
+Für manuelle Läufe sollte `docker compose exec` und nicht `docker compose run`
+verwendet werden. `exec` nutzt den bereits laufenden Container und damit dieselbe
+storeBackup-Lock-Datei. Ein mit `run` erzeugter zweiter Container könnte einen
+bereits laufenden Backup-Prozess nicht zuverlässig erkennen.
+
+Nach Änderungen oder einem Image-Update:
+
+```sh
+docker compose pull
+docker compose up -d
+docker compose exec storebackup backup
+```
+
 ## Environment-Einstellungen
 
 | Variable | Standard | Beschreibung |
