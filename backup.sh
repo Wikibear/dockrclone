@@ -18,7 +18,7 @@ mkdir -p "$BACKUP_DIR"
 KEEP_RELATIVE="1d ${KEEP_DAYS}d ${KEEP_WEEKS}w ${KEEP_MONTHS}m"
 echo "backup: starting source=$SOURCE_DIR target=$BACKUP_DIR series=$SERIES retention='$KEEP_RELATIVE'"
 
-if storeBackup.pl --sourceDir "$SOURCE_DIR" --backupDir "$BACKUP_DIR" \
+if storeBackup --sourceDir "$SOURCE_DIR" --backupDir "$BACKUP_DIR" \
     --series "$SERIES" --keepRelative "$KEEP_RELATIVE" --logFile /dev/stdout; then
   echo "backup: storeBackup completed successfully"
 else
