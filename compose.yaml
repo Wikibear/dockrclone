@@ -1,7 +1,7 @@
 services:
   storebackup:
     build: .
-    image: ghcr.io/OWNER/storebackup:latest
+    image: ghcr.io/wikibear/dockstorebackup:latest
     restart: unless-stopped
     environment:
       TZ: Europe/Berlin

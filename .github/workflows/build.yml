@@ -8,7 +8,7 @@ on:
     - cron: '17 4 * * 1'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   packages: write
 jobs:
   build:
@@ -28,7 +28,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
+            type=semver,pattern={{version}}
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -48,3 +48,8 @@ jobs:
             -v "$RUNNER_TEMP/source:/source:ro" \
             -v "$RUNNER_TEMP/backup:/backup" \
             "$IMAGE" backup
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
