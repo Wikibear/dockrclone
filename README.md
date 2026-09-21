@@ -18,6 +18,38 @@ und wird nur nach einem erfolgreichen storeBackup-Lauf aufgerufen. Ein fehlender
 oder fehlerhafter Push beendet den manuellen/geplanten Lauf mit Fehler; dadurch
 bleibt der Zustand sichtbar und Kuma kann alarmieren.
 
+## Environment-Einstellungen
+
+| Variable | Standard | Beschreibung |
+| --- | --- | --- |
+| `TZ` | `UTC` | Zeitzone für Cron, z. B. `Europe/Berlin` |
+| `SCHEDULE` | `0 3 * * *` | Fünffeld-Cron-Ausdruck für den täglichen Lauf um 03:00 Uhr |
+| `SOURCE_DIR` | `/source` | Quelle im Container; sollte read-only gemountet werden |
+| `BACKUP_DIR` | `/backup` | Zielverzeichnis im Container |
+| `SERIES` | `default` | storeBackup-Serie innerhalb des Backup-Ziels |
+| `KEEP_DAYS` | `7` | Altersstufe in Tagen für die native storeBackup-Retention |
+| `KEEP_WEEKS` | `4` | Altersstufe in Wochen für die native storeBackup-Retention |
+| `KEEP_MONTHS` | `12` | Altersstufe in Monaten für die native storeBackup-Retention |
+| `KUMA_PUSH_URL` | leer | Optionaler Uptime-Kuma-Push nach erfolgreichem Backup |
+
+Beispiel für die Konfiguration in `compose.yaml`:
+
+```yaml
+environment:
+  TZ: Europe/Berlin
+  SCHEDULE: "0 3 * * *"
+  SOURCE_DIR: /source
+  BACKUP_DIR: /backup
+  SERIES: default
+  KEEP_DAYS: "7"
+  KEEP_WEEKS: "4"
+  KEEP_MONTHS: "12"
+  KUMA_PUSH_URL: "https://kuma.example/api/push/DEIN-TOKEN"
+```
+
+Cron-Ausdrücke müssen in YAML als String geschrieben werden. Für eine andere
+Häufigkeit kann beispielsweise `0 */6 * * *` verwendet werden.
+
 `KEEP_DAYS`, `KEEP_WEEKS` und `KEEP_MONTHS` werden als Altersstufen an
 storeBackup `--keepRelative` übergeben. Die eigentliche Retention und Löschung
 erfolgt vollständig durch storeBackup. Die Standardwerte sind 7 Tage, 4 Wochen
