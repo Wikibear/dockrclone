@@ -27,9 +27,9 @@ bleibt der Zustand sichtbar und Kuma kann alarmieren.
 | `SOURCE_DIR` | `/source` | Quelle im Container; sollte read-only gemountet werden |
 | `BACKUP_DIR` | `/backup` | Zielverzeichnis im Container |
 | `SERIES` | `default` | storeBackup-Serie innerhalb des Backup-Ziels |
-| `KEEP_DAYS` | `7` | Altersstufe in Tagen für die native storeBackup-Retention |
-| `KEEP_WEEKS` | `4` | Altersstufe in Wochen für die native storeBackup-Retention |
-| `KEEP_MONTHS` | `12` | Altersstufe in Monaten für die native storeBackup-Retention |
+| `KEEP_DAYS` | `7` | Alle Backups aus diesem Zeitraum behalten |
+| `KEEP_WEEKS` | `4` | Den letzten Wochenstand für diesen Zeitraum behalten |
+| `KEEP_MONTHS` | `12` | Den letzten Monatsstand für diesen Zeitraum behalten |
 | `KUMA_PUSH_URL` | leer | Optionaler Uptime-Kuma-Push nach erfolgreichem Backup |
 
 Beispiel für die Konfiguration in `compose.yaml`:
@@ -50,10 +50,11 @@ environment:
 Cron-Ausdrücke müssen in YAML als String geschrieben werden. Für eine andere
 Häufigkeit kann beispielsweise `0 */6 * * *` verwendet werden.
 
-`KEEP_DAYS`, `KEEP_WEEKS` und `KEEP_MONTHS` werden als Altersstufen an
-storeBackup `--keepRelative` übergeben. Die eigentliche Retention und Löschung
-erfolgt vollständig durch storeBackup. Die Standardwerte sind 7 Tage, 4 Wochen
-und 12 Monate.
+Die Retention verwendet ausschließlich die nativen storeBackup-Optionen
+`--keepAll`, `--keepLastOfWeek` und `--keepLastOfMonth`. Wochen werden intern als
+7 Tage, Monate als 30 Tage berechnet. Die eigentliche Auswahl und Löschung erfolgt
+vollständig durch storeBackup. Die Standardwerte sind 7 Tage, 4 Wochen und
+12 Monate.
 
 ## Architektur und Sicherheit
 

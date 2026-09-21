@@ -14,12 +14,22 @@ if [ ! -d "$SOURCE_DIR" ]; then
 fi
 mkdir -p "$BACKUP_DIR"
 
-# storeBackup's native relative retention keeps one suitable backup in each age bucket.
-KEEP_RELATIVE="1d ${KEEP_DAYS}d ${KEEP_WEEKS}w ${KEEP_MONTHS}m"
-echo "backup: starting source=$SOURCE_DIR target=$BACKUP_DIR series=$SERIES retention='$KEEP_RELATIVE'"
+for value in "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS"; do
+  case "$value" in
+    ""|*[!0-9]*) echo "backup: retention values must be non-negative integers" >&2; exit 2 ;;
+  esac
+done
+
+KEEP_WEEKS_DAYS=$((KEEP_WEEKS * 7))
+KEEP_MONTHS_DAYS=$((KEEP_MONTHS * 30))
+echo "backup: starting source=$SOURCE_DIR target=$BACKUP_DIR series=$SERIES retention=${KEEP_DAYS}d/${KEEP_WEEKS}w/${KEEP_MONTHS}m"
 
 if storeBackup --sourceDir "$SOURCE_DIR" --backupDir "$BACKUP_DIR" \
-    --series "$SERIES" --keepRelative "$KEEP_RELATIVE" --logFile /dev/stdout; then
+    --series "$SERIES" \
+    --keepAll "${KEEP_DAYS}d" \
+    --keepLastOfWeek "${KEEP_WEEKS_DAYS}d" \
+    --keepLastOfMonth "${KEEP_MONTHS_DAYS}d" \
+    --logFile /dev/stdout; then
   echo "backup: storeBackup completed successfully"
 else
   status=$?
