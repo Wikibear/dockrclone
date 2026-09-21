@@ -143,4 +143,10 @@ Paketstände ohne Änderungen am Dockerfile. Vor dem Veröffentlichen blockiert 
 Trivy-Scan Images mit bekannten, bereits behebbaren kritischen Schwachstellen.
 Veröffentlichte Images enthalten zusätzlich SBOM- und Provenance-Attestierungen.
 
+Releases werden mit Release Please verwaltet. Änderungen auf `main` erstellen oder
+aktualisieren automatisch einen Release-PR mit Versionsnummer und Changelog. Sobald
+dieser PR zusammengeführt wird, werden der zugehörige `v*`-Tag und das GitHub Release
+automatisch angelegt. Commit-Präfixe wie `fix:` und `feat:` bestimmen dabei, ob die
+Patch- oder Minor-Version erhöht wird; `BREAKING CHANGE:` erzeugt eine Major-Version.
+
 Lizenz: GPL-3.0-or-later.
