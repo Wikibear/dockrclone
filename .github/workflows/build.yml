@@ -39,13 +39,31 @@ jobs:
           mkdir -p "$RUNNER_TEMP/source/one" "$RUNNER_TEMP/source/two" "$RUNNER_TEMP/backup"
           printf 'first source\n' > "$RUNNER_TEMP/source/one/file"
           printf 'second source\n' > "$RUNNER_TEMP/source/two/file"
+          python3 tests/kuma_server.py "$RUNNER_TEMP/kuma-requests" &
           docker run --rm \
+            --add-host host.docker.internal:host-gateway \
             -v "$RUNNER_TEMP/source:/source:ro" \
             -v "$RUNNER_TEMP/backup:/backup" \
             -e $'SOURCES=one=/source/one\ntwo=/source/two' \
+            -e KUMA_BASE=http://host.docker.internal:18080 \
+            -e KUMA_TOKEN=test-token \
             dockstorebackup:test backup
           test -d "$RUNNER_TEMP/backup/one"
           test -d "$RUNNER_TEMP/backup/two"
+          if docker run --rm \
+            --add-host host.docker.internal:host-gateway \
+            -v "$RUNNER_TEMP/source:/source:ro" \
+            -v "$RUNNER_TEMP/backup:/backup" \
+            -e SOURCES=missing=/source/missing \
+            -e KUMA_BASE=http://host.docker.internal:18080 \
+            -e KUMA_TOKEN=test-token \
+            dockstorebackup:test backup; then
+            echo "missing source unexpectedly succeeded" >&2
+            exit 1
+          fi
+          wait
+          grep -F '/api/push/test-token?status=up&msg=ok' "$RUNNER_TEMP/kuma-requests"
+          grep -F 'status=down&msg=' "$RUNNER_TEMP/kuma-requests"
 
   publish:
     if: github.event_name != 'pull_request'

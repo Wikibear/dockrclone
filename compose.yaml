@@ -16,7 +16,7 @@ services:
       KEEP_DAYS: "7"
       KEEP_WEEKS: "4"
       KEEP_MONTHS: "12"
-      KUMA_URL: ""
+      KUMA_BASE: ""
       KUMA_TOKEN: ""
     volumes:
       - /var/lib/docker/volumes:/source/docker-volumes:ro

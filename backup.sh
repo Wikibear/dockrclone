@@ -16,19 +16,31 @@ for value in "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS"; do
   esac
 done
 
-case "${KUMA_URL:-}" in
+KUMA_BASE=${KUMA_BASE:-${KUMA_URL:-}}
+case "$KUMA_BASE" in
   ""|http://*|https://*) ;;
-  *) echo "backup: KUMA_URL must use http or https" >&2; exit 2 ;;
+  *) echo "backup: KUMA_BASE must use http or https" >&2; exit 2 ;;
 esac
 case "${KUMA_TOKEN:-}" in
   "") ;;
   *[!A-Za-z0-9_-]*) echo "backup: KUMA_TOKEN contains unsupported characters" >&2; exit 2 ;;
 esac
-if { [ -n "${KUMA_URL:-}" ] && [ -z "${KUMA_TOKEN:-}" ]; } || \
-   { [ -z "${KUMA_URL:-}" ] && [ -n "${KUMA_TOKEN:-}" ]; }; then
-  echo "backup: KUMA_URL and KUMA_TOKEN must either both be set or both be empty" >&2
+if { [ -n "$KUMA_BASE" ] && [ -z "${KUMA_TOKEN:-}" ]; } || \
+   { [ -z "$KUMA_BASE" ] && [ -n "${KUMA_TOKEN:-}" ]; }; then
+  echo "backup: KUMA_BASE and KUMA_TOKEN must either both be set or both be empty" >&2
   exit 2
 fi
+
+kuma_push() {
+  kuma_status=$1
+  kuma_message=$2
+  [ -n "$KUMA_BASE" ] || return 0
+  curl --fail --silent --show-error --max-time 30 --proto '=http,https' \
+    --get \
+    --data-urlencode "status=$kuma_status" \
+    --data-urlencode "msg=$kuma_message" \
+    "${KUMA_BASE%/}/api/push/${KUMA_TOKEN}" >/dev/null
+}
 
 sources_tmp=
 cleanup() { [ -z "$sources_tmp" ] || rm -f "$sources_tmp"; }
@@ -73,6 +85,7 @@ while IFS= read -r source_line || [ -n "$source_line" ]; do
   esac
   if [ ! -d "$source_dir" ]; then
     echo "backup: source directory does not exist: $source_dir" >&2
+    kuma_push down "source '$source_series' does not exist" || echo "backup: Uptime Kuma error push failed" >&2
     exit 2
   fi
 
@@ -88,9 +101,11 @@ while IFS= read -r source_line || [ -n "$source_line" ]; do
       --logFile /dev/stdout; then
     echo "backup: source '$source_series' completed successfully"
   else
-    status=$?
-    echo "backup: source '$source_series' failed with exit code $status" >&2
-    exit "$status"
+    run_status=$?
+    error_message="source '$source_series' failed with exit code $run_status"
+    echo "backup: $error_message" >&2
+    kuma_push down "$error_message" || echo "backup: Uptime Kuma error push failed" >&2
+    exit "$run_status"
   fi
 done < "$sources_file"
 
@@ -100,10 +115,9 @@ if [ "$source_count" -eq 0 ]; then
 fi
 
 echo "backup: all $source_count source(s) completed successfully"
-if [ -n "${KUMA_URL:-}" ]; then
+if [ -n "$KUMA_BASE" ]; then
   echo "backup: sending Uptime Kuma heartbeat"
-  if ! curl --fail --silent --show-error --max-time 30 --proto '=http,https' \
-      "${KUMA_URL%/}/${KUMA_TOKEN}" >/dev/null; then
+  if ! kuma_push up ok; then
     echo "backup: Uptime Kuma push failed" >&2
     exit 1
   fi

@@ -29,7 +29,7 @@ manuellen oder geplanten Lauf mit Fehler.
 | `KEEP_DAYS` | `7` | Alle Backups aus diesem Zeitraum behalten |
 | `KEEP_WEEKS` | `4` | Den letzten Wochenstand für diesen Zeitraum behalten |
 | `KEEP_MONTHS` | `12` | Den letzten Monatsstand für diesen Zeitraum behalten |
-| `KUMA_URL` | leer | Kuma-Basis-URL, z. B. `https://kuma.example/api/push` |
+| `KUMA_BASE` | leer | Kuma-Basis-URL, z. B. `https://kuma.example` |
 | `KUMA_TOKEN` | leer | Token des Kuma-Push-Monitors |
 
 Jede Zeile in `SOURCES` erzeugt eine eigene storeBackup-Serie unterhalb des
@@ -51,7 +51,7 @@ environment:
   KEEP_DAYS: "7"
   KEEP_WEEKS: "4"
   KEEP_MONTHS: "12"
-  KUMA_URL: "https://kuma.example/api/push"
+  KUMA_BASE: "https://kuma.example"
   KUMA_TOKEN: "DEIN-TOKEN"
 volumes:
   - /var/lib/docker/volumes:/source/docker-volumes:ro
@@ -63,6 +63,12 @@ volumes:
 Der Name links vom Gleichheitszeichen muss eindeutig sein und darf Buchstaben,
 Zahlen, Punkte, Unterstriche, Bindestriche und Schrägstriche enthalten. Der Pfad
 rechts davon ist der Mount-Pfad innerhalb des Containers.
+
+Der Kuma-Aufruf erfolgt nach einem erfolgreichen Gesamtlauf als
+`KUMA_BASE/api/push/KUMA_TOKEN?status=up&msg=ok`. Schlägt eine Quelle fehl, wird
+`status=down` mit der URL-kodierten Fehlermeldung als `msg` gesendet. Ohne beide
+Kuma-Variablen läuft das Backup ohne Monitoring weiter. `KUMA_URL` aus Version
+1.1.0 wird übergangsweise weiterhin als Alias für `KUMA_BASE` akzeptiert.
 
 Cron-Ausdrücke müssen in YAML als String geschrieben werden. Für eine andere
 Häufigkeit kann beispielsweise `0 */6 * * *` verwendet werden.

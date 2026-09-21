@@ -26,6 +26,7 @@ reject_multiline SCHEDULE "${SCHEDULE:-}"
 reject_multiline SOURCE_DIR "${SOURCE_DIR:-}"
 reject_multiline BACKUP_DIR "${BACKUP_DIR:-}"
 reject_multiline SERIES "${SERIES:-}"
+reject_multiline KUMA_BASE "${KUMA_BASE:-}"
 reject_multiline KUMA_URL "${KUMA_URL:-}"
 reject_multiline KUMA_TOKEN "${KUMA_TOKEN:-}"
 
@@ -59,17 +60,18 @@ for value in "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS"; do
     ""|*[!0-9]*) echo "entrypoint: retention values must be non-negative integers" >&2; exit 2 ;;
   esac
 done
-case "${KUMA_URL:-}" in
+KUMA_BASE=${KUMA_BASE:-${KUMA_URL:-}}
+case "$KUMA_BASE" in
   ""|http://*|https://*) ;;
-  *) echo "entrypoint: KUMA_URL must use http or https" >&2; exit 2 ;;
+  *) echo "entrypoint: KUMA_BASE must use http or https" >&2; exit 2 ;;
 esac
 case "${KUMA_TOKEN:-}" in
   "") ;;
   *[!A-Za-z0-9_-]*) echo "entrypoint: KUMA_TOKEN contains unsupported characters" >&2; exit 2 ;;
 esac
-if { [ -n "${KUMA_URL:-}" ] && [ -z "${KUMA_TOKEN:-}" ]; } || \
-   { [ -z "${KUMA_URL:-}" ] && [ -n "${KUMA_TOKEN:-}" ]; }; then
-  echo "entrypoint: KUMA_URL and KUMA_TOKEN must either both be set or both be empty" >&2
+if { [ -n "$KUMA_BASE" ] && [ -z "${KUMA_TOKEN:-}" ]; } || \
+   { [ -z "$KUMA_BASE" ] && [ -n "${KUMA_TOKEN:-}" ]; }; then
+  echo "entrypoint: KUMA_BASE and KUMA_TOKEN must either both be set or both be empty" >&2
   exit 2
 fi
 
@@ -78,8 +80,8 @@ ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 printf '%s\n' "${SOURCES:-$SERIES=$SOURCE_DIR}" > /run/storebackup.sources
 chmod 0600 /run/storebackup.sources
 printf 'SHELL=/bin/sh\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nTZ=%s\n' "$TZ" > /etc/cron.d/storebackup
-printf 'SOURCES_FILE=/run/storebackup.sources\nBACKUP_DIR=%s\nKEEP_DAYS=%s\nKEEP_WEEKS=%s\nKEEP_MONTHS=%s\nKUMA_URL=%s\nKUMA_TOKEN=%s\n' \
-  "$BACKUP_DIR" "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS" "${KUMA_URL:-}" "${KUMA_TOKEN:-}" \
+printf 'SOURCES_FILE=/run/storebackup.sources\nBACKUP_DIR=%s\nKEEP_DAYS=%s\nKEEP_WEEKS=%s\nKEEP_MONTHS=%s\nKUMA_BASE=%s\nKUMA_TOKEN=%s\n' \
+  "$BACKUP_DIR" "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS" "$KUMA_BASE" "${KUMA_TOKEN:-}" \
   >> /etc/cron.d/storebackup
 printf '%s root /usr/local/bin/backup.sh\n' "$SCHEDULE" >> /etc/cron.d/storebackup
 chmod 0600 /etc/cron.d/storebackup
