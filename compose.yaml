@@ -1,6 +1,7 @@
+name: dockstorebackup
+
 services:
   storebackup:
-    build: .
     image: ghcr.io/wikibear/dockstorebackup:latest
     restart: unless-stopped
     environment:
