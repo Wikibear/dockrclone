@@ -4,17 +4,11 @@ set -eu
 : "${SOURCE_DIR:=/source}"
 : "${BACKUP_DIR:=/backup}"
 : "${SERIES:=default}"
-: "${KEEP_DAYS:=7}"
-: "${KEEP_WEEKS:=4}"
-: "${KEEP_MONTHS:=12}"
+: "${DELETE_EXTRANEOUS:=true}"
 
 mkdir -p "$BACKUP_DIR"
 
-for value in "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS"; do
-  case "$value" in
-    ""|*[!0-9]*) echo "backup: retention values must be non-negative integers" >&2; exit 2 ;;
-  esac
-done
+case "$DELETE_EXTRANEOUS" in true|false) ;; *) echo "backup: DELETE_EXTRANEOUS must be true or false" >&2; exit 2 ;; esac
 
 KUMA_BASE=${KUMA_BASE:-${KUMA_URL:-}}
 case "$KUMA_BASE" in
@@ -58,8 +52,6 @@ else
   fi
 fi
 
-KEEP_WEEKS_DAYS=$((KEEP_WEEKS * 7))
-KEEP_MONTHS_DAYS=$((KEEP_MONTHS * 30))
 source_count=0
 seen_series='|'
 
@@ -91,34 +83,33 @@ while IFS= read -r source_line || [ -n "$source_line" ]; do
 
   seen_series="${seen_series}${source_series}|"
   source_count=$((source_count + 1))
-  echo "backup: starting source=$source_dir target=$BACKUP_DIR series=$source_series retention=${KEEP_DAYS}d/${KEEP_WEEKS}w/${KEEP_MONTHS}m"
+  target_dir="$BACKUP_DIR/$source_series"
+  mkdir -p "$target_dir"
+  echo "rsync: starting source=$source_dir target=$target_dir"
 
-  if storeBackup --sourceDir "$source_dir" --backupDir "$BACKUP_DIR" \
-      --series "$source_series" \
-      --keepAll "${KEEP_DAYS}d" \
-      --keepLastOfWeek "${KEEP_WEEKS_DAYS}d" \
-      --keepLastOfMonth "${KEEP_MONTHS_DAYS}d" \
-      --logFile /dev/stdout; then
-    echo "backup: source '$source_series' completed successfully"
+  rsync_args='-aHAX --numeric-ids --info=stats2'
+  [ "$DELETE_EXTRANEOUS" = true ] && rsync_args="$rsync_args --delete"
+  if rsync $rsync_args "$source_dir/" "$target_dir/"; then
+    echo "rsync: source '$source_series' completed successfully"
   else
     run_status=$?
     error_message="source '$source_series' failed with exit code $run_status"
-    echo "backup: $error_message" >&2
-    kuma_push down "$error_message" || echo "backup: Uptime Kuma error push failed" >&2
+    echo "rsync: $error_message" >&2
+    kuma_push down "$error_message" || echo "rsync: Uptime Kuma error push failed" >&2
     exit "$run_status"
   fi
 done < "$sources_file"
 
 if [ "$source_count" -eq 0 ]; then
-  echo "backup: SOURCES does not contain any source entries" >&2
+  echo "rsync: SOURCES does not contain any source entries" >&2
   exit 2
 fi
 
-echo "backup: all $source_count source(s) completed successfully"
+echo "rsync: all $source_count source(s) completed successfully"
 if [ -n "$KUMA_BASE" ]; then
-  echo "backup: sending Uptime Kuma heartbeat"
+  echo "rsync: sending Uptime Kuma heartbeat"
   if ! kuma_push up ok; then
-    echo "backup: Uptime Kuma push failed" >&2
+    echo "rsync: Uptime Kuma push failed" >&2
     exit 1
   fi
 fi

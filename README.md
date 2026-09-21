@@ -1,7 +1,7 @@
-# storeBackup Docker image
+# dockrsync
 
 Schlankes Debian-Image für regelmäßige lokale oder gemountete Backups mit
-storeBackup. Die Quelle wird read-only gemountet; geschrieben wird ausschließlich
+`rsync`. Die Quelle wird read-only gemountet; geschrieben wird ausschließlich
 in das Backup-Ziel.
 
 ## Start
@@ -10,7 +10,7 @@ in das Backup-Ziel.
 
 ```sh
 docker compose up -d
-docker compose exec storebackup backup
+docker compose exec rsync backup
 ```
 
 Alle Einstellungen stehen direkt in `environment:`. Es können beliebig viele
@@ -36,30 +36,29 @@ docker compose ps
 Einen vollständigen Backup-Lauf sofort im laufenden Container ausführen:
 
 ```sh
-docker compose exec storebackup backup
+docker compose exec rsync backup
 ```
 
 Der Befehl läuft im Vordergrund und liefert bei Erfolg Exit-Code `0`. Fehler von
-storeBackup oder beim Kuma-Push führen zu einem Exit-Code ungleich `0`.
+`rsync` oder beim Kuma-Push führen zu einem Exit-Code ungleich `0`.
 
 Ein Backup kann alternativ im Hintergrund gestartet werden:
 
 ```sh
-docker compose exec -d storebackup backup
-docker compose logs -f storebackup
+docker compose exec -d rsync backup
+docker compose logs -f rsync
 ```
 
-Für manuelle Läufe sollte `docker compose exec` und nicht `docker compose run`
-verwendet werden. `exec` nutzt den bereits laufenden Container und damit dieselbe
-storeBackup-Lock-Datei. Ein mit `run` erzeugter zweiter Container könnte einen
-bereits laufenden Backup-Prozess nicht zuverlässig erkennen.
+Für manuelle Läufe ist `docker compose exec` praktisch, weil es den bereits
+laufenden Container und dessen Mounts verwendet. Parallele Läufe auf dasselbe
+Ziel sollten vermieden werden, da das Skript keine Sperrdatei verwaltet.
 
 Nach Änderungen oder einem Image-Update:
 
 ```sh
 docker compose pull
 docker compose up -d
-docker compose exec storebackup backup
+docker compose exec rsync backup
 ```
 
 ## Environment-Einstellungen
@@ -70,13 +69,11 @@ docker compose exec storebackup backup
 | `SCHEDULE` | `0 3 * * *` | Fünffeld-Cron-Ausdruck für den täglichen Lauf um 03:00 Uhr |
 | `SOURCES` | leer | Mehrzeilige Liste im Format `name=/absoluter/pfad` |
 | `BACKUP_DIR` | `/backup` | Zielverzeichnis im Container |
-| `KEEP_DAYS` | `7` | Alle Backups aus diesem Zeitraum behalten |
-| `KEEP_WEEKS` | `4` | Den letzten Wochenstand für diesen Zeitraum behalten |
-| `KEEP_MONTHS` | `12` | Den letzten Monatsstand für diesen Zeitraum behalten |
+| `DELETE_EXTRANEOUS` | `true` | Nicht mehr vorhandene Dateien im Ziel löschen |
 | `KUMA_BASE` | leer | Kuma-Basis-URL, z. B. `https://kuma.example` |
 | `KUMA_TOKEN` | leer | Token des Kuma-Push-Monitors |
 
-Jede Zeile in `SOURCES` erzeugt eine eigene storeBackup-Serie unterhalb des
+Jede Zeile in `SOURCES` erzeugt ein eigenes Zielverzeichnis unterhalb des
 Backup-Ziels. Die Anzahl der Quellen ist nicht begrenzt. Leerzeilen und Zeilen,
 die mit `#` beginnen, werden ignoriert. Für bestehende Installationen bleiben
 `SOURCE_DIR` und `SERIES` als Einzelquellen-Fallback unterstützt.
@@ -92,9 +89,7 @@ environment:
     appdata=/source/appdata
     documents=/source/documents
   BACKUP_DIR: /backup
-  KEEP_DAYS: "7"
-  KEEP_WEEKS: "4"
-  KEEP_MONTHS: "12"
+  DELETE_EXTRANEOUS: "true"
   KUMA_BASE: "https://kuma.example"
   KUMA_TOKEN: "DEIN-TOKEN"
 volumes:
@@ -117,23 +112,24 @@ Kuma-Variablen läuft das Backup ohne Monitoring weiter. `KUMA_URL` aus Version
 Cron-Ausdrücke müssen in YAML als String geschrieben werden. Für eine andere
 Häufigkeit kann beispielsweise `0 */6 * * *` verwendet werden.
 
-Die Retention verwendet ausschließlich die nativen storeBackup-Optionen
-`--keepAll`, `--keepLastOfWeek` und `--keepLastOfMonth`. Wochen werden intern als
-7 Tage, Monate als 30 Tage berechnet. Die eigentliche Auswahl und Löschung erfolgt
-vollständig durch storeBackup. Die Standardwerte sind 7 Tage, 4 Wochen und
-12 Monate.
+`dockrsync` erstellt eine Spiegelkopie und keine versionierten Stände. Mit
+`DELETE_EXTRANEOUS=true` wird `rsync --delete` verwendet: Dateien, die aus der
+Quelle entfernt wurden, werden beim nächsten Lauf auch im Ziel gelöscht. Für
+Snapshots oder Aufbewahrungsfristen muss das Ziel-Dateisystem eine eigene
+Snapshot-Lösung bereitstellen.
 
 ## Architektur und Sicherheit
 
-Debian trixie-slim installiert storeBackup aus Debian sowie nur cron, curl und
+Debian trixie-slim installiert `rsync` sowie nur cron, curl und
 tzdata als Laufzeitwerkzeuge. Der Scheduler läuft im Vordergrund, und SIGTERM
 wird an ihn weitergereicht. Logs gehen nach stdout/stderr. Root bleibt absichtlich
-der Standard: storeBackup soll Eigentümer, Rechte, Hardlinks und Metadaten der
+der Standard: `rsync -aHAX --numeric-ids` soll Eigentümer, Rechte, Hardlinks,
+ACLs, erweiterte Attribute und numerische Benutzer-IDs der
 Quelle verlustfrei sichern; ein non-root-Betrieb ist nur mit bewusst passenden
 UID/GID- und Mount-Rechten möglich. `no-new-privileges` verhindert dabei eine
 nachträgliche Rechteausweitung innerhalb des Containers.
 
-Der Beispiel-Mount `/var/lib/docker/volumes:/source:ro` erlaubt das Sichern aller
+Der Beispiel-Mount `/var/lib/docker/volumes:/source/docker-volumes:ro` erlaubt das Sichern aller
 Docker-Volumes, gibt dem Container aber auch lesenden Zugriff auf deren gesamten
 Inhalt. Wenn nicht alle Volumes benötigt werden, sollten stattdessen nur die
 gewünschten `_data`-Verzeichnisse einzeln und read-only eingebunden werden.

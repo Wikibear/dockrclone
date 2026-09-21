@@ -2,7 +2,7 @@ FROM debian:trixie-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y storebackup cron curl tzdata \
+    && apt-get install --no-install-recommends -y rsync cron curl tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backup.sh entrypoint.sh /usr/local/bin/
@@ -13,8 +13,6 @@ ENV TZ=UTC \
     SOURCE_DIR=/source \
     BACKUP_DIR=/backup \
     SERIES=default \
-    KEEP_DAYS=7 \
-    KEEP_WEEKS=4 \
-    KEEP_MONTHS=12
+    DELETE_EXTRANEOUS=true
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

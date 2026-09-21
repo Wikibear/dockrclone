@@ -1,8 +1,8 @@
-name: dockstorebackup
+name: dockrsync
 
 services:
-  storebackup:
-    image: ghcr.io/wikibear/dockstorebackup:latest
+  rsync:
+    build: .
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -13,9 +13,7 @@ services:
         docker-volumes=/source/docker-volumes
         appdata=/source/appdata
       BACKUP_DIR: /backup
-      KEEP_DAYS: "7"
-      KEEP_WEEKS: "4"
-      KEEP_MONTHS: "12"
+      DELETE_EXTRANEOUS: "true"
       KUMA_BASE: ""
       KUMA_TOKEN: ""
     volumes:

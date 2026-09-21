@@ -26,6 +26,7 @@ reject_multiline SCHEDULE "${SCHEDULE:-}"
 reject_multiline SOURCE_DIR "${SOURCE_DIR:-}"
 reject_multiline BACKUP_DIR "${BACKUP_DIR:-}"
 reject_multiline SERIES "${SERIES:-}"
+reject_multiline DELETE_EXTRANEOUS "${DELETE_EXTRANEOUS:-}"
 reject_multiline KUMA_BASE "${KUMA_BASE:-}"
 reject_multiline KUMA_URL "${KUMA_URL:-}"
 reject_multiline KUMA_TOKEN "${KUMA_TOKEN:-}"
@@ -55,11 +56,7 @@ case "$SERIES" in
     exit 2
     ;;
 esac
-for value in "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS"; do
-  case "$value" in
-    ""|*[!0-9]*) echo "entrypoint: retention values must be non-negative integers" >&2; exit 2 ;;
-  esac
-done
+case "${DELETE_EXTRANEOUS:-true}" in true|false) ;; *) echo "entrypoint: DELETE_EXTRANEOUS must be true or false" >&2; exit 2 ;; esac
 KUMA_BASE=${KUMA_BASE:-${KUMA_URL:-}}
 case "$KUMA_BASE" in
   ""|http://*|https://*) ;;
@@ -77,14 +74,14 @@ fi
 
 export TZ
 ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
-printf '%s\n' "${SOURCES:-$SERIES=$SOURCE_DIR}" > /run/storebackup.sources
-chmod 0600 /run/storebackup.sources
-printf 'SHELL=/bin/sh\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nTZ=%s\n' "$TZ" > /etc/cron.d/storebackup
-printf 'SOURCES_FILE=/run/storebackup.sources\nBACKUP_DIR=%s\nKEEP_DAYS=%s\nKEEP_WEEKS=%s\nKEEP_MONTHS=%s\nKUMA_BASE=%s\nKUMA_TOKEN=%s\n' \
-  "$BACKUP_DIR" "$KEEP_DAYS" "$KEEP_WEEKS" "$KEEP_MONTHS" "$KUMA_BASE" "${KUMA_TOKEN:-}" \
-  >> /etc/cron.d/storebackup
-printf '%s root /usr/local/bin/backup.sh\n' "$SCHEDULE" >> /etc/cron.d/storebackup
-chmod 0600 /etc/cron.d/storebackup
+printf '%s\n' "${SOURCES:-$SERIES=$SOURCE_DIR}" > /run/rsync.sources
+chmod 0600 /run/rsync.sources
+printf 'SHELL=/bin/sh\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nTZ=%s\n' "$TZ" > /etc/cron.d/rsync
+printf 'SOURCES_FILE=/run/rsync.sources\nBACKUP_DIR=%s\nDELETE_EXTRANEOUS=%s\nKUMA_BASE=%s\nKUMA_TOKEN=%s\n' \
+  "$BACKUP_DIR" "${DELETE_EXTRANEOUS:-true}" "$KUMA_BASE" "${KUMA_TOKEN:-}" \
+  >> /etc/cron.d/rsync
+printf '%s root /usr/local/bin/backup.sh\n' "$SCHEDULE" >> /etc/cron.d/rsync
+chmod 0600 /etc/cron.d/rsync
 
 term() { echo 'entrypoint: stopping cron'; kill -TERM "$cron_pid" 2>/dev/null || true; }
 trap term INT TERM
