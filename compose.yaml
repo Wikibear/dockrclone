@@ -1,0 +1,18 @@
+services:
+  storebackup:
+    build: .
+    image: ghcr.io/OWNER/storebackup:latest
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      SCHEDULE: "0 3 * * *"
+      SOURCE_DIR: /source
+      BACKUP_DIR: /backup
+      SERIES: default
+      KEEP_DAYS: "7"
+      KEEP_WEEKS: "4"
+      KEEP_MONTHS: "12"
+      KUMA_PUSH_URL: ""
+    volumes:
+      - /var/lib/docker/volumes:/source:ro
+      - /mnt/backup:/backup
