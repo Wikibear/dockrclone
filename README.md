@@ -62,13 +62,21 @@ tzdata als Laufzeitwerkzeuge. Der Scheduler läuft im Vordergrund, und SIGTERM
 wird an ihn weitergereicht. Logs gehen nach stdout/stderr. Root bleibt absichtlich
 der Standard: storeBackup soll Eigentümer, Rechte, Hardlinks und Metadaten der
 Quelle verlustfrei sichern; ein non-root-Betrieb ist nur mit bewusst passenden
-UID/GID- und Mount-Rechten möglich.
+UID/GID- und Mount-Rechten möglich. `no-new-privileges` verhindert dabei eine
+nachträgliche Rechteausweitung innerhalb des Containers.
+
+Der Beispiel-Mount `/var/lib/docker/volumes:/source:ro` erlaubt das Sichern aller
+Docker-Volumes, gibt dem Container aber auch lesenden Zugriff auf deren gesamten
+Inhalt. Wenn nicht alle Volumes benötigt werden, sollten stattdessen nur die
+gewünschten `_data`-Verzeichnisse einzeln und read-only eingebunden werden.
 
 ## Builds und Updates
 
 GitHub Actions baut und veröffentlicht nach GHCR (`latest` auf `main`, versionierte
 Tags bei `v*`) und führt reguläre Builds aus. Dependabot überwacht Docker-Basisimage
 und Actions; ein wöchentlicher Workflow-Build berücksichtigt außerdem neue Debian-
-Paketstände ohne Änderungen am Dockerfile.
+Paketstände ohne Änderungen am Dockerfile. Vor dem Veröffentlichen blockiert ein
+Trivy-Scan Images mit bekannten, bereits behebbaren kritischen Schwachstellen.
+Veröffentlichte Images enthalten zusätzlich SBOM- und Provenance-Attestierungen.
 
 Lizenz: GPL-3.0-or-later.

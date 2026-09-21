@@ -4,6 +4,8 @@ services:
   storebackup:
     image: ghcr.io/wikibear/dockstorebackup:latest
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       TZ: Europe/Berlin
       SCHEDULE: "0 3 * * *"
