@@ -9,13 +9,16 @@ services:
     environment:
       TZ: Europe/Berlin
       SCHEDULE: "0 3 * * *"
-      SOURCE_DIR: /source
+      SOURCES: |
+        docker-volumes=/source/docker-volumes
+        appdata=/source/appdata
       BACKUP_DIR: /backup
-      SERIES: default
       KEEP_DAYS: "7"
       KEEP_WEEKS: "4"
       KEEP_MONTHS: "12"
-      KUMA_PUSH_URL: ""
+      KUMA_URL: ""
+      KUMA_TOKEN: ""
     volumes:
-      - /var/lib/docker/volumes:/source:ro
+      - /var/lib/docker/volumes:/source/docker-volumes:ro
+      - /opt/appdata:/source/appdata:ro
       - /mnt/backup:/backup

@@ -36,12 +36,16 @@ jobs:
           exit-code: '1'
       - name: Smoke test image
         run: |
-          mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/backup"
-          printf 'smoke test\n' > "$RUNNER_TEMP/source/file"
+          mkdir -p "$RUNNER_TEMP/source/one" "$RUNNER_TEMP/source/two" "$RUNNER_TEMP/backup"
+          printf 'first source\n' > "$RUNNER_TEMP/source/one/file"
+          printf 'second source\n' > "$RUNNER_TEMP/source/two/file"
           docker run --rm \
             -v "$RUNNER_TEMP/source:/source:ro" \
             -v "$RUNNER_TEMP/backup:/backup" \
+            -e $'SOURCES=one=/source/one\ntwo=/source/two' \
             dockstorebackup:test backup
+          test -d "$RUNNER_TEMP/backup/one"
+          test -d "$RUNNER_TEMP/backup/two"
 
   publish:
     if: github.event_name != 'pull_request'

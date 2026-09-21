@@ -6,17 +6,17 @@ in das Backup-Ziel.
 
 ## Start
 
-`compose.yaml` übernehmen, `OWNER` und die Pfade anpassen, anschließend:
+`compose.yaml` übernehmen und die Pfade anpassen, anschließend:
 
 ```sh
 docker compose up -d
 docker compose exec storebackup backup
 ```
 
-Alle Einstellungen stehen direkt in `environment:`. `KUMA_PUSH_URL` ist optional
-und wird nur nach einem erfolgreichen storeBackup-Lauf aufgerufen. Ein fehlender
-oder fehlerhafter Push beendet den manuellen/geplanten Lauf mit Fehler; dadurch
-bleibt der Zustand sichtbar und Kuma kann alarmieren.
+Alle Einstellungen stehen direkt in `environment:`. Es können beliebig viele
+Quellen definiert werden. Der optionale Kuma-Heartbeat wird erst gesendet, wenn
+alle Quellen erfolgreich gesichert wurden. Ein fehlgeschlagener Push beendet den
+manuellen oder geplanten Lauf mit Fehler.
 
 ## Environment-Einstellungen
 
@@ -24,13 +24,18 @@ bleibt der Zustand sichtbar und Kuma kann alarmieren.
 | --- | --- | --- |
 | `TZ` | `UTC` | Zeitzone für Cron, z. B. `Europe/Berlin` |
 | `SCHEDULE` | `0 3 * * *` | Fünffeld-Cron-Ausdruck für den täglichen Lauf um 03:00 Uhr |
-| `SOURCE_DIR` | `/source` | Quelle im Container; sollte read-only gemountet werden |
+| `SOURCES` | leer | Mehrzeilige Liste im Format `name=/absoluter/pfad` |
 | `BACKUP_DIR` | `/backup` | Zielverzeichnis im Container |
-| `SERIES` | `default` | storeBackup-Serie innerhalb des Backup-Ziels |
 | `KEEP_DAYS` | `7` | Alle Backups aus diesem Zeitraum behalten |
 | `KEEP_WEEKS` | `4` | Den letzten Wochenstand für diesen Zeitraum behalten |
 | `KEEP_MONTHS` | `12` | Den letzten Monatsstand für diesen Zeitraum behalten |
-| `KUMA_PUSH_URL` | leer | Optionaler Uptime-Kuma-Push nach erfolgreichem Backup |
+| `KUMA_URL` | leer | Kuma-Basis-URL, z. B. `https://kuma.example/api/push` |
+| `KUMA_TOKEN` | leer | Token des Kuma-Push-Monitors |
+
+Jede Zeile in `SOURCES` erzeugt eine eigene storeBackup-Serie unterhalb des
+Backup-Ziels. Die Anzahl der Quellen ist nicht begrenzt. Leerzeilen und Zeilen,
+die mit `#` beginnen, werden ignoriert. Für bestehende Installationen bleiben
+`SOURCE_DIR` und `SERIES` als Einzelquellen-Fallback unterstützt.
 
 Beispiel für die Konfiguration in `compose.yaml`:
 
@@ -38,14 +43,26 @@ Beispiel für die Konfiguration in `compose.yaml`:
 environment:
   TZ: Europe/Berlin
   SCHEDULE: "0 3 * * *"
-  SOURCE_DIR: /source
+  SOURCES: |
+    docker-volumes=/source/docker-volumes
+    appdata=/source/appdata
+    documents=/source/documents
   BACKUP_DIR: /backup
-  SERIES: default
   KEEP_DAYS: "7"
   KEEP_WEEKS: "4"
   KEEP_MONTHS: "12"
-  KUMA_PUSH_URL: "https://kuma.example/api/push/DEIN-TOKEN"
+  KUMA_URL: "https://kuma.example/api/push"
+  KUMA_TOKEN: "DEIN-TOKEN"
+volumes:
+  - /var/lib/docker/volumes:/source/docker-volumes:ro
+  - /opt/appdata:/source/appdata:ro
+  - /srv/documents:/source/documents:ro
+  - /mnt/backup:/backup
 ```
+
+Der Name links vom Gleichheitszeichen muss eindeutig sein und darf Buchstaben,
+Zahlen, Punkte, Unterstriche, Bindestriche und Schrägstriche enthalten. Der Pfad
+rechts davon ist der Mount-Pfad innerhalb des Containers.
 
 Cron-Ausdrücke müssen in YAML als String geschrieben werden. Für eine andere
 Häufigkeit kann beispielsweise `0 */6 * * *` verwendet werden.
