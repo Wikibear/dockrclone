@@ -16,5 +16,5 @@ jobs:
       - name: Create or update release
         uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5 # v4
         with:
-          release-type: simple
+          config-file: release-please-config.json
           target-branch: main

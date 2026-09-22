@@ -22,6 +22,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
+          pull: true
           load: true
           tags: dockrclone:test
           cache-from: type=gha
@@ -37,20 +38,29 @@ jobs:
       - name: Smoke test image
         run: |
           docker run --rm dockrclone:test rclone version
-          mkdir -p "$RUNNER_TEMP/source/one" "$RUNNER_TEMP/source/two" "$RUNNER_TEMP/backup"
+          mkdir -p "$RUNNER_TEMP/source/one" "$RUNNER_TEMP/source/two" "$RUNNER_TEMP/backup" "$RUNNER_TEMP/config"
           printf 'first source\n' > "$RUNNER_TEMP/source/one/file"
           printf 'second source\n' > "$RUNNER_TEMP/source/two/file"
+          cat > "$RUNNER_TEMP/config/rclone.conf" <<EOF
+          [backup]
+          type = alias
+          remote = $RUNNER_TEMP/backup
+          EOF
           docker run --rm \
             -v "$RUNNER_TEMP/source:/source:ro" \
             -v "$RUNNER_TEMP/backup:/backup" \
+            -v "$RUNNER_TEMP/config:/config:ro" \
             -e $'SOURCES=one=/source/one\ntwo=/source/two' \
+            -e REMOTE_ROOT=backup: \
             dockrclone:test backup
           test -d "$RUNNER_TEMP/backup/one"
           test -d "$RUNNER_TEMP/backup/two"
           if docker run --rm \
             -v "$RUNNER_TEMP/source:/source:ro" \
             -v "$RUNNER_TEMP/backup:/backup" \
+            -v "$RUNNER_TEMP/config:/config:ro" \
             -e SOURCES=missing=/source/missing \
+            -e REMOTE_ROOT=backup: \
             dockrclone:test backup; then
             echo "missing source unexpectedly succeeded" >&2
             exit 1
@@ -84,6 +94,7 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
+          pull: true
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

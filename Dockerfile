@@ -1,4 +1,4 @@
-FROM rclone/rclone:latest AS rclone
+FROM rclone/rclone:1.75.1 AS rclone
 
 FROM debian:trixie-slim
 
