@@ -1,7 +1,7 @@
-name: dockrsync
+name: dockrclone
 
 services:
-  rsync:
+  rclone:
     build: .
     restart: unless-stopped
     security_opt:
@@ -12,11 +12,11 @@ services:
       SOURCES: |
         docker-volumes=/source/docker-volumes
         appdata=/source/appdata
-      BACKUP_DIR: /backup
+      REMOTE_ROOT: "backup:"
       DELETE_EXTRANEOUS: "true"
       KUMA_BASE: ""
       KUMA_TOKEN: ""
     volumes:
       - /var/lib/docker/volumes:/source/docker-volumes:ro
       - /opt/appdata:/source/appdata:ro
-      - /mnt/backup:/backup
+      - ./config:/config

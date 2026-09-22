@@ -1,152 +1,118 @@
-# dockrsync
+# dockrclone
 
-Schlankes Debian-Image für regelmäßige lokale oder gemountete Backups mit
-`rsync`. Die Quelle wird read-only gemountet; geschrieben wird ausschließlich
-in das Backup-Ziel.
+Schlanker Container für geplante Synchronisationen lokaler Verzeichnisse zu
+rclone-Remotes. rclone unterstützt unter anderem FTP, SFTP, WebDAV sowie diverse
+Cloud- und Objektspeicher. Cron-Zeitplan und optionaler Uptime-Kuma-Heartbeat
+bleiben im Container integriert.
 
-## Start
+## Einrichtung
 
-`compose.yaml` übernehmen und die Pfade anpassen, anschließend:
+Lege im Projektverzeichnis den persistenten Konfigurationsordner `config` an
+und erstelle darin `rclone.conf`. Die Datei enthält die Remotes und Zugangsdaten
+und wird nicht ins Git-Repository aufgenommen:
 
 ```sh
-docker compose up -d
-docker compose exec rsync backup
+mkdir -p config
+docker compose run --rm rclone config
 ```
 
-Alle Einstellungen stehen direkt in `environment:`. Es können beliebig viele
-Quellen definiert werden. Der optionale Kuma-Heartbeat wird erst gesendet, wenn
-alle Quellen erfolgreich gesichert wurden. Ein fehlgeschlagener Push beendet den
-manuellen oder geplanten Lauf mit Fehler.
+Der Befehl führt den rclone-Konfigurationsdialog aus. Danach enthält die Datei
+beispielsweise ein Remote namens `backup`. Passe `REMOTE_ROOT` in `compose.yaml`
+an diesen Remote-Namen an. Der Standard `backup:` synchronisiert Quellen in
+`backup:<Quellenname>`.
 
-## Manuell testen
-
-Vor dem Start kann die Compose-Konfiguration geprüft werden:
+## Start und manueller Lauf
 
 ```sh
 docker compose config
+docker compose up -d --build
+docker compose exec rclone backup
+docker compose logs -f rclone
 ```
 
-Container starten und Status kontrollieren:
+Für einzelne rclone-Befehle im laufenden Container kannst du `rclone` als
+Entrypoint-Unterbefehl verwenden. Die persistent gemountete Konfiguration wird
+automatisch mitgegeben, zum Beispiel:
 
 ```sh
-docker compose up -d
-docker compose ps
+docker compose exec rclone rclone listremotes
 ```
 
-Einen vollständigen Backup-Lauf sofort im laufenden Container ausführen:
+Vor einem echten Lauf kann rclone mit `--dry-run` prüfen, was geändert würde:
 
 ```sh
-docker compose exec rsync backup
+docker compose exec rclone rclone sync --dry-run \
+  --config=/config/rclone.conf /source/appdata backup:appdata
 ```
 
-Der Befehl läuft im Vordergrund und liefert bei Erfolg Exit-Code `0`. Fehler von
-`rsync` oder beim Kuma-Push führen zu einem Exit-Code ungleich `0`.
+Das Backup-Skript führt für jede Quelle den gewählten Modus nacheinander aus.
+Parallele Läufe sollten vermieden werden, wenn sie auf dieselben Remotes
+zugreifen.
 
-Ein Backup kann alternativ im Hintergrund gestartet werden:
+## Compose-Konfiguration
 
-```sh
-docker compose exec -d rsync backup
-docker compose logs -f rsync
+```yaml
+name: dockrclone
+
+services:
+  rclone:
+    build: .
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TZ: Europe/Berlin
+      SCHEDULE: "0 3 * * *"
+      SOURCES: |
+        docker-volumes=/source/docker-volumes
+        appdata=/source/appdata
+      REMOTE_ROOT: "backup:"
+      DELETE_EXTRANEOUS: "true"
+      KUMA_BASE: ""
+      KUMA_TOKEN: ""
+    volumes:
+      - /var/lib/docker/volumes:/source/docker-volumes:ro
+      - /opt/appdata:/source/appdata:ro
+  - ./config:/config
 ```
 
-Für manuelle Läufe ist `docker compose exec` praktisch, weil es den bereits
-laufenden Container und dessen Mounts verwendet. Parallele Läufe auf dasselbe
-Ziel sollten vermieden werden, da das Skript keine Sperrdatei verwaltet.
+Der Hostordner heißt absichtlich nur `config`; rclone liest dort
+`/config/rclone.conf`. Halte die Datei mit eingeschränkten Dateirechten privat.
+Wenn du für OAuth-Remotes Token-Aktualisierungen erlauben willst, muss rclone
+in diesen Ordner schreiben können. Dafür müssen die Host-Dateirechte zum im
+Container laufenden Benutzer passen.
 
-Nach Änderungen oder einem Image-Update:
-
-```sh
-docker compose pull
-docker compose up -d
-docker compose exec rsync backup
-```
-
-## Environment-Einstellungen
+## Einstellungen
 
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
-| `TZ` | `UTC` | Zeitzone für Cron, z. B. `Europe/Berlin` |
-| `SCHEDULE` | `0 3 * * *` | Fünffeld-Cron-Ausdruck für den täglichen Lauf um 03:00 Uhr |
-| `SOURCES` | leer | Mehrzeilige Liste im Format `name=/absoluter/pfad` |
-| `BACKUP_DIR` | `/backup` | Zielverzeichnis im Container |
-| `DELETE_EXTRANEOUS` | `true` | Nicht mehr vorhandene Dateien im Ziel löschen |
-| `KUMA_BASE` | leer | Kuma-Basis-URL, z. B. `https://kuma.example` |
-| `KUMA_TOKEN` | leer | Token des Kuma-Push-Monitors |
+| `TZ` | `UTC` | Zeitzone für Cron |
+| `SCHEDULE` | `0 3 * * *` | Fünffeld-Cron-Ausdruck |
+| `SOURCES` | leer | Mehrzeilige Liste `name=/absoluter/pfad` |
+| `REMOTE_ROOT` | leer | rclone-Zielbasis, z. B. `backup:` |
+| `DELETE_EXTRANEOUS` | `true` | `true` nutzt `rclone sync`; `false` nutzt `rclone copy` ohne Löschen am Ziel |
+| `KUMA_BASE` | leer | Kuma-Basis-URL |
+| `KUMA_TOKEN` | leer | Kuma-Push-Token |
 
-Jede Zeile in `SOURCES` erzeugt ein eigenes Zielverzeichnis unterhalb des
-Backup-Ziels. Die Anzahl der Quellen ist nicht begrenzt. Leerzeilen und Zeilen,
-die mit `#` beginnen, werden ignoriert. Für bestehende Installationen bleiben
-`SOURCE_DIR` und `SERIES` als Einzelquellen-Fallback unterstützt.
+Jede Quelle wird in ein Unterverzeichnis unter `REMOTE_ROOT` synchronisiert.
+`DELETE_EXTRANEOUS=true` löscht am Ziel Dateien, die in der Quelle nicht mehr
+vorhanden sind. rclone löscht bei einem Lauf mit Fehlern keine Ziel-Dateien.
+Für einen nicht-destruktiven Spiegeltest kann `rclone sync --dry-run` verwendet
+werden.
 
-Beispiel für die Konfiguration in `compose.yaml`:
+## Aktualisierung
 
-```yaml
-environment:
-  TZ: Europe/Berlin
-  SCHEDULE: "0 3 * * *"
-  SOURCES: |
-    docker-volumes=/source/docker-volumes
-    appdata=/source/appdata
-    documents=/source/documents
-  BACKUP_DIR: /backup
-  DELETE_EXTRANEOUS: "true"
-  KUMA_BASE: "https://kuma.example"
-  KUMA_TOKEN: "DEIN-TOKEN"
-volumes:
-  - /var/lib/docker/volumes:/source/docker-volumes:ro
-  - /opt/appdata:/source/appdata:ro
-  - /srv/documents:/source/documents:ro
-  - /mnt/backup:/backup
+Dependabot prüft wöchentlich die Docker-Referenz `rclone/rclone:latest` im
+Dockerfile. Zusammen mit dem wöchentlichen Build wird so das aktuelle offizielle
+rclone-Binary in das dockrclone-Image übernommen. Nach Änderungen:
+
+```sh
+docker compose build --pull
+docker compose up -d
 ```
 
-Der Name links vom Gleichheitszeichen muss eindeutig sein und darf Buchstaben,
-Zahlen, Punkte, Unterstriche, Bindestriche und Schrägstriche enthalten. Der Pfad
-rechts davon ist der Mount-Pfad innerhalb des Containers.
-
-Der Kuma-Aufruf erfolgt nach einem erfolgreichen Gesamtlauf als
-`KUMA_BASE/api/push/KUMA_TOKEN?status=up&msg=ok`. Schlägt eine Quelle fehl, wird
-`status=down` mit der URL-kodierten Fehlermeldung als `msg` gesendet. Ohne beide
-Kuma-Variablen läuft das Backup ohne Monitoring weiter. `KUMA_URL` aus Version
-1.1.0 wird übergangsweise weiterhin als Alias für `KUMA_BASE` akzeptiert.
-
-Cron-Ausdrücke müssen in YAML als String geschrieben werden. Für eine andere
-Häufigkeit kann beispielsweise `0 */6 * * *` verwendet werden.
-
-`dockrsync` erstellt eine Spiegelkopie und keine versionierten Stände. Mit
-`DELETE_EXTRANEOUS=true` wird `rsync --delete` verwendet: Dateien, die aus der
-Quelle entfernt wurden, werden beim nächsten Lauf auch im Ziel gelöscht. Für
-Snapshots oder Aufbewahrungsfristen muss das Ziel-Dateisystem eine eigene
-Snapshot-Lösung bereitstellen.
-
-## Architektur und Sicherheit
-
-Debian trixie-slim installiert `rsync` sowie nur cron, curl und
-tzdata als Laufzeitwerkzeuge. Der Scheduler läuft im Vordergrund, und SIGTERM
-wird an ihn weitergereicht. Logs gehen nach stdout/stderr. Root bleibt absichtlich
-der Standard: `rsync -aHAX --numeric-ids` soll Eigentümer, Rechte, Hardlinks,
-ACLs, erweiterte Attribute und numerische Benutzer-IDs der
-Quelle verlustfrei sichern; ein non-root-Betrieb ist nur mit bewusst passenden
-UID/GID- und Mount-Rechten möglich. `no-new-privileges` verhindert dabei eine
-nachträgliche Rechteausweitung innerhalb des Containers.
-
-Der Beispiel-Mount `/var/lib/docker/volumes:/source/docker-volumes:ro` erlaubt das Sichern aller
-Docker-Volumes, gibt dem Container aber auch lesenden Zugriff auf deren gesamten
-Inhalt. Wenn nicht alle Volumes benötigt werden, sollten stattdessen nur die
-gewünschten `_data`-Verzeichnisse einzeln und read-only eingebunden werden.
-
-## Builds und Updates
-
-GitHub Actions baut und veröffentlicht nach GHCR (`latest` auf `main`, versionierte
-Tags bei `v*`) und führt reguläre Builds aus. Dependabot überwacht Docker-Basisimage
-und Actions; ein wöchentlicher Workflow-Build berücksichtigt außerdem neue Debian-
-Paketstände ohne Änderungen am Dockerfile. Vor dem Veröffentlichen blockiert ein
-Trivy-Scan Images mit bekannten, bereits behebbaren kritischen Schwachstellen.
-Veröffentlichte Images enthalten zusätzlich SBOM- und Provenance-Attestierungen.
-
-Releases werden mit Release Please verwaltet. Änderungen auf `main` erstellen oder
-aktualisieren automatisch einen Release-PR mit Versionsnummer und Changelog. Sobald
-dieser PR zusammengeführt wird, werden der zugehörige `v*`-Tag und das GitHub Release
-automatisch angelegt. Commit-Präfixe wie `fix:` und `feat:` bestimmen dabei, ob die
-Patch- oder Minor-Version erhöht wird; `BREAKING CHANGE:` erzeugt eine Major-Version.
+Das Container-Image wird vom bestehenden GitHub-Repository gebaut und nach
+GHCR veröffentlicht. Das Repository muss für die Umbenennung auf dockrclone
+nicht neu angelegt werden; GitHub kann das bestehende Repository umbenennen.
 
 Lizenz: GPL-3.0-or-later.

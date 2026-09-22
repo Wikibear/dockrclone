@@ -2,13 +2,15 @@
 set -eu
 
 : "${SOURCE_DIR:=/source}"
-: "${BACKUP_DIR:=/backup}"
+: "${REMOTE_ROOT:=}"
 : "${SERIES:=default}"
 : "${DELETE_EXTRANEOUS:=true}"
 
-mkdir -p "$BACKUP_DIR"
-
 case "$DELETE_EXTRANEOUS" in true|false) ;; *) echo "backup: DELETE_EXTRANEOUS must be true or false" >&2; exit 2 ;; esac
+case "$REMOTE_ROOT" in
+  ""|*:) ;;
+  *) echo "backup: REMOTE_ROOT must include a configured rclone remote, for example 'backup:'" >&2; exit 2 ;;
+esac
 
 KUMA_BASE=${KUMA_BASE:-${KUMA_URL:-}}
 case "$KUMA_BASE" in
@@ -83,33 +85,43 @@ while IFS= read -r source_line || [ -n "$source_line" ]; do
 
   seen_series="${seen_series}${source_series}|"
   source_count=$((source_count + 1))
-  target_dir="$BACKUP_DIR/$source_series"
-  mkdir -p "$target_dir"
-  echo "rsync: starting source=$source_dir target=$target_dir"
+  target_dir="${REMOTE_ROOT}${source_series}"
+  echo "rclone: starting source=$source_dir target=$target_dir"
 
-  rsync_args='-aHAX --numeric-ids --info=stats2'
-  [ "$DELETE_EXTRANEOUS" = true ] && rsync_args="$rsync_args --delete"
-  if rsync $rsync_args "$source_dir/" "$target_dir/"; then
-    echo "rsync: source '$source_series' completed successfully"
+  rclone_args='--config=/config/rclone.conf --stats=30s'
+  if [ "$DELETE_EXTRANEOUS" = true ]; then
+    if rclone sync $rclone_args "$source_dir/" "$target_dir"; then
+      echo "rclone: source '$source_series' completed successfully"
+    else
+      run_status=$?
+      error_message="source '$source_series' failed with exit code $run_status"
+      echo "rclone: $error_message" >&2
+      kuma_push down "$error_message" || echo "rclone: Uptime Kuma error push failed" >&2
+      exit "$run_status"
+    fi
   else
-    run_status=$?
-    error_message="source '$source_series' failed with exit code $run_status"
-    echo "rsync: $error_message" >&2
-    kuma_push down "$error_message" || echo "rsync: Uptime Kuma error push failed" >&2
-    exit "$run_status"
+    if rclone copy $rclone_args "$source_dir/" "$target_dir"; then
+      echo "rclone: source '$source_series' completed successfully"
+    else
+      run_status=$?
+      error_message="source '$source_series' failed with exit code $run_status"
+      echo "rclone: $error_message" >&2
+      kuma_push down "$error_message" || echo "rclone: Uptime Kuma error push failed" >&2
+      exit "$run_status"
+    fi
   fi
 done < "$sources_file"
 
 if [ "$source_count" -eq 0 ]; then
-  echo "rsync: SOURCES does not contain any source entries" >&2
+  echo "rclone: SOURCES does not contain any source entries" >&2
   exit 2
 fi
 
-echo "rsync: all $source_count source(s) completed successfully"
+echo "rclone: all $source_count source(s) completed successfully"
 if [ -n "$KUMA_BASE" ]; then
-  echo "rsync: sending Uptime Kuma heartbeat"
+  echo "rclone: sending Uptime Kuma heartbeat"
   if ! kuma_push up ok; then
-    echo "rsync: Uptime Kuma push failed" >&2
+    echo "rclone: Uptime Kuma push failed" >&2
     exit 1
   fi
 fi

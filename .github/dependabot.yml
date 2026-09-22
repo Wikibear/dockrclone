@@ -4,6 +4,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    allow:
+      - dependency-name: rclone/rclone
+    target-branch: main
+    commit-message:
+      prefix: build
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: main
+    ignore:
+      - dependency-name: rclone/rclone
   - package-ecosystem: github-actions
     directory: /
     schedule:
