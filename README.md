@@ -1,27 +1,27 @@
 # dockrclone
 
-Schlanker Container für geplante Synchronisationen lokaler Verzeichnisse zu
-rclone-Remotes. rclone unterstützt unter anderem FTP, SFTP, WebDAV sowie diverse
-Cloud- und Objektspeicher. Cron-Zeitplan und optionaler Uptime-Kuma-Heartbeat
-bleiben im Container integriert.
+A lightweight container for scheduled synchronization from local directories
+to rclone remotes. rclone supports FTP, SFTP, WebDAV, and many cloud and object
+storage services. The container also includes a cron schedule and optional
+Uptime Kuma heartbeat.
 
-## Einrichtung
+## Setup
 
-Lege im Projektverzeichnis den persistenten Konfigurationsordner `config` an
-und erstelle darin `rclone.conf`. Die Datei enthält die Remotes und Zugangsdaten
-und wird nicht ins Git-Repository aufgenommen:
+Create the persistent `config` directory in the project folder and configure
+`rclone.conf` there. This file contains remote definitions and credentials, so
+it is excluded from Git:
 
 ```sh
 mkdir -p config
 docker compose run --rm rclone config
 ```
 
-Der Befehl führt den rclone-Konfigurationsdialog aus. Danach enthält die Datei
-beispielsweise ein Remote namens `backup`. Passe `REMOTE_ROOT` in `compose.yaml`
-an diesen Remote-Namen an. Der Standard `backup:` synchronisiert Quellen in
-`backup:<Quellenname>`.
+This opens rclone's interactive configuration wizard. It will create a remote,
+for example one named `backup`. Set `REMOTE_ROOT` in `compose.yaml` to that
+remote name. The default `backup:` sends each source to
+`backup:<source-name>`.
 
-## Start und manueller Lauf
+## Start and run a backup manually
 
 ```sh
 docker compose config
@@ -30,26 +30,24 @@ docker compose exec rclone backup
 docker compose logs -f rclone
 ```
 
-Für einzelne rclone-Befehle im laufenden Container kannst du `rclone` als
-Entrypoint-Unterbefehl verwenden. Die persistent gemountete Konfiguration wird
-automatisch mitgegeben, zum Beispiel:
+You can also run rclone commands inside the running container. Pass the
+configuration file explicitly:
 
 ```sh
-docker compose exec rclone rclone listremotes
+docker compose exec rclone rclone --config=/config/rclone.conf listremotes
 ```
 
-Vor einem echten Lauf kann rclone mit `--dry-run` prüfen, was geändert würde:
+Before a real run, use `--dry-run` to preview the changes:
 
 ```sh
 docker compose exec rclone rclone sync --dry-run \
   --config=/config/rclone.conf /source/appdata backup:appdata
 ```
 
-Das Backup-Skript führt für jede Quelle den gewählten Modus nacheinander aus.
-Parallele Läufe sollten vermieden werden, wenn sie auf dieselben Remotes
-zugreifen.
+The backup script processes each configured source in sequence. Avoid running
+overlapping jobs against the same remote.
 
-## Compose-Konfiguration
+## Compose configuration
 
 ```yaml
 name: dockrclone
@@ -73,46 +71,48 @@ services:
     volumes:
       - /var/lib/docker/volumes:/source/docker-volumes:ro
       - /opt/appdata:/source/appdata:ro
-  - ./config:/config
+      - ./config:/config
 ```
 
-Der Hostordner heißt absichtlich nur `config`; rclone liest dort
-`/config/rclone.conf`. Halte die Datei mit eingeschränkten Dateirechten privat.
-Wenn du für OAuth-Remotes Token-Aktualisierungen erlauben willst, muss rclone
-in diesen Ordner schreiben können. Dafür müssen die Host-Dateirechte zum im
-Container laufenden Benutzer passen.
+The host directory is intentionally named just `config`; rclone reads
+`/config/rclone.conf` from it. Keep the file private with restricted file
+permissions. Some OAuth remotes need to update tokens in the config file. For
+those remotes, rclone needs write access to the directory, so the host file
+permissions must allow the container's user to write there.
 
-## Einstellungen
+## Settings
 
-| Variable | Standard | Beschreibung |
+| Variable | Default | Description |
 | --- | --- | --- |
-| `TZ` | `UTC` | Zeitzone für Cron |
-| `SCHEDULE` | `0 3 * * *` | Fünffeld-Cron-Ausdruck |
-| `SOURCES` | leer | Mehrzeilige Liste `name=/absoluter/pfad` |
-| `REMOTE_ROOT` | leer | rclone-Zielbasis, z. B. `backup:` |
-| `DELETE_EXTRANEOUS` | `true` | `true` nutzt `rclone sync`; `false` nutzt `rclone copy` ohne Löschen am Ziel |
-| `KUMA_BASE` | leer | Kuma-Basis-URL |
-| `KUMA_TOKEN` | leer | Kuma-Push-Token |
+| `TZ` | `UTC` | Time zone used by cron |
+| `SCHEDULE` | `0 3 * * *` | Five-field cron expression |
+| `SOURCES` | empty | Multiline list in the format `name=/absolute/path` |
+| `REMOTE_ROOT` | `backup:` | rclone destination root, e.g. `backup:` |
+| `DELETE_EXTRANEOUS` | `true` | `true` uses `rclone sync`; `false` uses `rclone copy` and does not delete destination files |
+| `KUMA_BASE` | empty | Uptime Kuma base URL |
+| `KUMA_TOKEN` | empty | Uptime Kuma push token |
 
-Jede Quelle wird in ein Unterverzeichnis unter `REMOTE_ROOT` synchronisiert.
-`DELETE_EXTRANEOUS=true` löscht am Ziel Dateien, die in der Quelle nicht mehr
-vorhanden sind. rclone löscht bei einem Lauf mit Fehlern keine Ziel-Dateien.
-Für einen nicht-destruktiven Spiegeltest kann `rclone sync --dry-run` verwendet
-werden.
+Each source is copied into a subdirectory under `REMOTE_ROOT`. With
+`DELETE_EXTRANEOUS=true`, files missing from the source are deleted from the
+destination. rclone does not delete destination files if a sync run encounters
+errors. Use `rclone sync --dry-run` to preview a mirror operation without
+making changes.
 
-## Aktualisierung
+## Updates
 
-Dependabot prüft wöchentlich die Docker-Referenz `rclone/rclone:latest` im
-Dockerfile. Zusammen mit dem wöchentlichen Build wird so das aktuelle offizielle
-rclone-Binary in das dockrclone-Image übernommen. Nach Änderungen:
+Dependabot checks the pinned `rclone/rclone` Docker image version weekly and
+opens an update pull request when a newer version is available. The scheduled
+GitHub Actions build also refreshes the published image weekly. Image builds
+pull the referenced base images before building. After local changes, rebuild
+and restart the container with:
 
 ```sh
 docker compose build --pull
 docker compose up -d
 ```
 
-Das Container-Image wird vom bestehenden GitHub-Repository gebaut und nach
-GHCR veröffentlicht. Das Repository muss für die Umbenennung auf dockrclone
-nicht neu angelegt werden; GitHub kann das bestehende Repository umbenennen.
+The existing GitHub repository builds the container image and publishes it to
+GHCR. The repository was renamed to `dockrclone`; it did not need to be deleted
+or recreated.
 
-Lizenz: GPL-3.0-or-later.
+License: GPL-3.0-or-later.
