@@ -167,8 +167,8 @@ success or failure to the Uptime Kuma push monitor when it runs.
 Dependabot checks the pinned `rclone/rclone` Docker image version weekly and
 opens an update pull request when a newer version is available. The scheduled
 GitHub Actions build also refreshes the published image weekly. Image builds
-pull the referenced base images before building. After local changes, rebuild
-and restart the container with:
+pull the referenced base images before building. After a new image is
+published, update the container with:
 
 ```sh
 docker compose pull
