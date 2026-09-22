@@ -8,12 +8,6 @@ services:
       - no-new-privileges:true
     environment:
       TZ: Europe/Berlin
-      SCHEDULE: "0 3 * * *"
-      SOURCES: |
-        docker-volumes=/source/docker-volumes
-        appdata=/source/appdata
-      REMOTE_ROOT: "backup:"
-      DELETE_EXTRANEOUS: "true"
       KUMA_BASE: ""
       KUMA_TOKEN: ""
     volumes:

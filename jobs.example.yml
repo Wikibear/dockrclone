@@ -1,0 +1,22 @@
+jobs:
+  # Weekly backup to a NAS on Sunday at 21:30.
+  - name: nas-weekly
+    schedule: "30 21 * * 0"
+    source: /source/appdata
+    destination: "nas:backups/appdata"
+    mode: copy
+
+  # Nightly mirror to another server at 02:00. sync deletes files at the
+  # destination when they have been removed from the source.
+  - name: server-nightly-mirror
+    schedule: "0 2 * * *"
+    source: /source/appdata
+    destination: "server:mirror/appdata"
+    mode: sync
+
+  # Monthly copy to cloud on the first day at 03:00.
+  - name: cloud-monthly
+    schedule: "0 3 1 * *"
+    source: /source/appdata
+    destination: "cloud:backups/appdata"
+    mode: copy
