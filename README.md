@@ -88,8 +88,9 @@ different schedules and destinations.
 Check the YAML and source paths, then start the container:
 
 ```sh
+docker compose pull
 docker compose run --rm rclone validate
-docker compose up -d --build
+docker compose up -d
 ```
 
 At startup, the container reads `config/jobs.yml` and creates one cron entry
@@ -166,11 +167,11 @@ success or failure to the Uptime Kuma push monitor when it runs.
 Dependabot checks the pinned `rclone/rclone` Docker image version weekly and
 opens an update pull request when a newer version is available. The scheduled
 GitHub Actions build also refreshes the published image weekly. Image builds
-pull the referenced base images before building. After local changes, rebuild
-and restart the container with:
+pull the referenced base images before building. After a new image is
+published, update the container with:
 
 ```sh
-docker compose build --pull
+docker compose pull
 docker compose up -d
 ```
 
