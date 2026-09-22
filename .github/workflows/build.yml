@@ -41,10 +41,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/source/one" "$RUNNER_TEMP/source/two" "$RUNNER_TEMP/backup" "$RUNNER_TEMP/config"
           printf 'first source\n' > "$RUNNER_TEMP/source/one/file"
           printf 'second source\n' > "$RUNNER_TEMP/source/two/file"
-          cat > "$RUNNER_TEMP/config/rclone.conf" <<EOF
+          cat > "$RUNNER_TEMP/config/rclone.conf" <<'EOF'
           [backup]
           type = alias
-          remote = $RUNNER_TEMP/backup
+          remote = /backup
           EOF
           docker run --rm \
             -v "$RUNNER_TEMP/source:/source:ro" \
