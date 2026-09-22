@@ -50,22 +50,44 @@ jobs:
           type = alias
           remote = /backup
           EOF
+          cat > "$RUNNER_TEMP/config/jobs.yml" <<'EOF'
+          jobs:
+            - name: one
+              schedule: "0 3 * * *"
+              source: /source/one
+              destination: "backup:one"
+              mode: copy
+            - name: two
+              schedule: "0 4 * * *"
+              source: /source/two
+              destination: "backup:two"
+              mode: sync
+          EOF
           docker run --rm \
             -v "$RUNNER_TEMP/source:/source:ro" \
             -v "$RUNNER_TEMP/backup:/backup" \
             -v "$RUNNER_TEMP/config:/config:ro" \
-            -e $'SOURCES=one=/source/one\ntwo=/source/two' \
-            -e REMOTE_ROOT=backup: \
+            dockrclone:test validate
+          docker run --rm \
+            -v "$RUNNER_TEMP/source:/source:ro" \
+            -v "$RUNNER_TEMP/backup:/backup" \
+            -v "$RUNNER_TEMP/config:/config:ro" \
             dockrclone:test backup
           test -d "$RUNNER_TEMP/backup/one"
           test -d "$RUNNER_TEMP/backup/two"
+          cat > "$RUNNER_TEMP/config/jobs.yml" <<'EOF'
+          jobs:
+            - name: missing-source
+              schedule: "0 3 * * *"
+              source: /source/missing
+              destination: "backup:missing"
+              mode: copy
+          EOF
           if docker run --rm \
             -v "$RUNNER_TEMP/source:/source:ro" \
             -v "$RUNNER_TEMP/backup:/backup" \
             -v "$RUNNER_TEMP/config:/config:ro" \
-            -e SOURCES=missing=/source/missing \
-            -e REMOTE_ROOT=backup: \
-            dockrclone:test backup; then
+            dockrclone:test validate; then
             echo "missing source unexpectedly succeeded" >&2
             exit 1
           fi
