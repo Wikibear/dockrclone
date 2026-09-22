@@ -2,7 +2,7 @@ name: dockrclone
 
 services:
   rclone:
-    build: .
+    image: ghcr.io/wikibear/dockrclone:latest
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
