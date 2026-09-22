@@ -1,4 +1,4 @@
-# dockrclone
+# dockrclone (Experimental)
 
 A lightweight container for scheduled synchronization from local directories
 to rclone remotes. rclone supports FTP, SFTP, WebDAV, and many cloud and object
