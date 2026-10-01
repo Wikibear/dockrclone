@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.2](https://github.com/Wikibear/dockrclone/compare/v0.0.1...v0.0.2) (2026-09-22)
+
+
+### Features
+
+* configure independent scheduled backup jobs ([#11](https://github.com/Wikibear/dockrclone/issues/11)) ([356d07e](https://github.com/Wikibear/dockrclone/commit/356d07ec29ccc499c840f17f26dd2350291cebcc))
+
 ## 0.0.1 (2026-09-22)
 
 
